@@ -1,20 +1,15 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>중학교 교무실 스마트 학사일정 & 월중행사계획서 연동 앱</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- SheetJS (Excel/CSV 파싱) -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-  <!-- PDF.js (PDF 파싱) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <!-- JSZip (한글 표준 .hwpx 파싱) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <!-- Google Identity Services -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <style>
+  
+  
+  <title>중학교 스마트 학사달력 & Google 실시간 연동 앱</title>
+  
+  
+  
+  
+  
+  
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; }
     .calendar-cell { min-height: 118px; transition: background-color 0.15s ease; }
@@ -22,11 +17,11 @@
     .event-chip { font-size: 11px; line-height: 1.3; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-  </style>
+  
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
-  <!-- 상단 알람 토스트 배너 -->
+  <!-- 알람 배너 -->
   <div id="alarmBanner" class="hidden fixed top-4 right-4 z-50 max-w-sm bg-amber-50 border-l-4 border-amber-500 shadow-xl rounded-lg p-4">
     <div class="flex items-start justify-between gap-3">
       <div>
@@ -34,28 +29,61 @@
         <p id="alarmBannerTitle" class="text-sm font-semibold text-slate-900 mt-0.5"></p>
         <p id="alarmBannerMeta" class="text-xs text-slate-600 mt-1"></p>
       </div>
-      <button onclick="closeAlarmBanner()" class="text-slate-400 hover:text-slate-600 text-sm font-bold">✕</button>
+      <button "closeAlarmBanner()" class="text-slate-400 hover:text-slate-600 text-sm font-bold">✕</button>
     </div>
   </div>
 
-  <!-- 헤더 -->
+  <!-- Google Client ID 최초 안내 모달 (미설정 시 자동 오픈) -->
+  <div id="oauthSetupModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-extrabold text-slate-900">🔑 실제 Google 계정 로그인 연동 설정</h3>
+        <button "closeOauthModal()" class="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+      </div>
+      <div id="protocolWarning" class="hidden p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-semibold">
+        ⚠️ 현재 PC 파일(<code>file://</code>)로 직접 여셨습니다. Google 보안 정책상 로그인은 반드시 배포된 웹 주소(<code>https://...github.io</code>)나 로컬 서버에서 열어야 작동합니다.
+      </div>
+      <div class="text-xs text-slate-600 space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+        <p class="font-bold text-slate-800">연동 전 아래 2가지를 확인해 주세요:</p>
+        <p>1. Google Cloud Console → <strong>OAuth 클라이언트 ID(웹 애플리케이션)</strong>의 <strong>[승인된 자바스크립트 원본]</strong>에 아래 주소를 똑같이 등록해야 합니다.</p>
+        <div class="flex items-center gap-2 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5">
+          <code id="currentOriginText" class="text-indigo-700 font-bold flex-1 truncate"></code>
+          <button "copyOriginUrl()" class="text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded">복사</button>
+        </div>
+        <p>2. 발급받은 <code>.apps.googleusercontent.com</code>으로 끝나는 <strong>클라이언트 ID 전체</strong>를 아래에 붙여넣으세요.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">Google OAuth Client ID</label>
+        <input type="text" id="modalClientIdInput" placeholder="1234567890-abcdefg.apps.googleusercontent.com" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button "closeOauthModal()" class="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50">닫기</button>
+        <button "saveClientIdFromModalAndLogin()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white shadow-sm">저장 후 Google 로그인 시작</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 상단 헤더 -->
   <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">교</div>
         <div>
-          <h1 class="text-lg font-bold text-slate-900">중학교 스마트 학사달력 & 월중행사 공유</h1>
-          <p class="text-xs text-slate-500">12개 부서 맞춤 활동 · 월중행사 Google 시트 실시간 연동 · Google Calendar 내보내기</p>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold text-slate-900">중학교 스마트 학사달력 & Google 자동 연동</h1>
+            <span id="storageBadge" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">💾 영구저장 준비</span>
+          </div>
+          <p id="syncStatusSubtext" class="text-xs text-slate-500">월중행사 시트 자동 동기화 켜짐 · 새로고침 시 모든 입력 데이터 자동 복원</p>
         </div>
       </div>
 
-      <!-- 부서 필터(12개 부서 + 보조 학년부) & 구글 로그인 -->
+      <!-- 부서 선택 & Google 실시간 로그인 버튼 -->
       <div class="flex flex-wrap items-center gap-2">
         <div class="flex flex-wrap items-center bg-slate-100 rounded-lg px-2.5 py-1.5 gap-2">
-          <span class="text-xs font-semibold text-slate-600">내 소속 부서:</span>
-          <select id="myDeptSelect" onchange="handleDeptChange()" class="bg-white border border-slate-300 rounded-md text-xs font-bold px-2 py-1 text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <span class="text-xs font-semibold text-slate-600">내 부서:</span>
+          <select id="myDeptSelect" "handleDeptChange()" class="bg-white border border-slate-300 rounded-md text-xs font-bold px-2 py-1 text-indigo-700 focus:outline-none">
             <option value="ALL">전체 부서 보기</option>
-            <option value="교무기획부" selected>교무기획부</option>
+            <option value="교무기획부">교무기획부</option>
             <option value="교육연구부">교육연구부</option>
             <option value="학생인권안전부">학생인권안전부</option>
             <option value="미래교육혁신부">미래교육혁신부</option>
@@ -67,88 +95,78 @@
             <option value="1학년부">1학년부</option>
             <option value="2학년부">2학년부</option>
             <option value="3학년부">3학년부</option>
-            <option value="행정실">행정실 (참고)</option>
+            <option value="행정실">행정실</option>
           </select>
 
-          <span class="text-xs font-semibold text-slate-500">+ 겸임 학년:</span>
-          <select id="mySubGradeSelect" onchange="handleDeptChange()" class="bg-white border border-slate-300 rounded-md text-xs font-semibold px-2 py-1 text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <span class="text-xs font-semibold text-slate-500">+ 학년:</span>
+          <select id="mySubGradeSelect" "handleDeptChange()" class="bg-white border border-slate-300 rounded-md text-xs font-semibold px-2 py-1 text-emerald-700 focus:outline-none">
             <option value="NONE">선택 안 함</option>
-            <option value="1학년부">1학년부 함께 보기</option>
-            <option value="2학년부">2학년부 함께 보기</option>
-            <option value="3학년부">3학년부 함께 보기</option>
+            <option value="1학년부">1학년부</option>
+            <option value="2학년부">2학년부</option>
+            <option value="3학년부">3학년부</option>
           </select>
         </div>
 
-        <button onclick="quickSyncCurrentMonthSheet()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-sm transition">
-          🔄 월중행사 시트 동기화
-        </button>
-
-        <button id="googleLoginBtn" onclick="handleGoogleLogin()" class="flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 py-2 rounded-lg shadow-sm transition">
-          <svg class="w-4 h-4" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
-            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24z"/>
-            <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14z"/>
-            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96z"/>
-          </svg>
-          <span id="googleLoginText">Google 아이디 로그인</span>
+        <button id="googleLoginBtn" "handleGoogleLoginClick()" class="flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold px-3.5 py-2 rounded-lg shadow-sm transition">
+          <span id="googleStatusDot" class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+          <span id="googleLoginText">Google 아이디 연동 로그인</span>
         </button>
       </div>
     </div>
 
-    <!-- 메인 탭 네비게이션 -->
+    <!-- 탭 메뉴 -->
     <div class="max-w-7xl mx-auto px-4 flex gap-1 border-t border-slate-100 bg-slate-50/60 overflow-x-auto">
-      <button onclick="switchTab('calendar')" id="tab-calendar" class="tab-btn px-4 py-2.5 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 whitespace-nowrap">
-        📅 학사달력 & 개별 일정관리
+      <button "switchTab('calendar')" id="tab-calendar" class="tab-btn px-4 py-2.5 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 whitespace-nowrap">
+        📅 학사달력 & 일정 입력
       </button>
-      <button onclick="switchTab('gsheet')" id="tab-gsheet" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap">
-        📊 구글 시트(월중행사계획서) 연동
+      <button "switchTab('gsheet')" id="tab-gsheet" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap">
+        📊 월중행사 시트 상시연동
       </button>
-      <button onclick="switchTab('upload')" id="tab-upload" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap">
+      <button "switchTab('upload')" id="tab-upload" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap">
         📂 연간 학사일정(엑셀·PDF·한글) 첨부
       </button>
-      <button onclick="switchTab('dept')" id="tab-dept" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap">
-        🏢 12개 부서 키워드 설정
+      <button "switchTab('dept')" id="tab-dept" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap">
+        🏢 12개 부서 키워드
       </button>
-      <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap">
-        🔔 내 알람 & Google API 설정
+      <button "switchTab('settings')" id="tab-settings" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap">
+        🔑 Google 연동 설정 & 알람·백업
       </button>
     </div>
   </header>
 
-  <!-- 메인 콘텐츠 영역 -->
+  <!-- 메인 영역 -->
   <main class="max-w-7xl w-full mx-auto px-4 py-5 flex-1">
 
-    <!-- [탭 1] 학사달력 & 개별 일정관리 -->
+    <!-- [탭 1] 달력 및 개별 일정 입력 -->
     <section id="view-calendar" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-      <!-- 좌측: 달력 (8칸) -->
       <div class="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div class="flex items-center gap-1.5">
-            <button onclick="changeMonth(-1)" class="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-sm font-bold">◀</button>
-            <h2 id="calendarTitle" class="text-xl font-extrabold text-slate-900 min-w-[135px] text-center">2026년 3월</h2>
-            <button onclick="changeMonth(1)" class="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-sm font-bold">▶</button>
-            <button onclick="jumpToYearMonth(2026, 2)" class="ml-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2.5 py-1.5 rounded-lg">26년 3월</button>
-            <button onclick="jumpToYearMonth(2027, 2)" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold px-2.5 py-1.5 rounded-lg">27년 3월</button>
+            <button "changeMonth(-1)" class="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-sm font-bold">◀</button>
+            <h2 id="calendarTitle" class="text-xl font-extrabold text-slate-900 min-w-[135px] text-center"></h2>
+            <button "changeMonth(1)" class="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-sm font-bold">▶</button>
+            <button "jumpToYearMonth(2026, 2)" class="ml-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2.5 py-1.5 rounded-lg">26년 3월</button>
+            <button "jumpToYearMonth(2027, 2)" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold px-2.5 py-1.5 rounded-lg">27년 3월</button>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
             <label class="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1.5 rounded-lg cursor-pointer">
-              <input type="checkbox" id="onlyMyDeptCheck" checked onchange="renderCalendar()" class="rounded text-indigo-600 focus:ring-indigo-500" />
-              <span>내 부서·개인 일정만 달력에 표시</span>
+              <input type="checkbox" id="onlyMyDeptCheck" "handleFilterToggle()" class="rounded text-indigo-600" />
+              <span>내 부서·내가 입력한 일정만 보기</span>
             </label>
-            <button onclick="syncMonthToGoogleCalendar()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition">
-              📤 이번 달 구글 달력 내보내기
+            <button "syncAllVisibleToGoogleCalendar(true)" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition">
+              ☁️ 로그인한 Google 달력에 지금 전체 동기화
             </button>
           </div>
         </div>
 
         <!-- 범례 -->
         <div class="flex flex-wrap items-center gap-3 text-xs text-slate-600 mb-3 pb-3 border-b border-slate-100">
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>내가 입력한 일정(항상 표시)</span>
           <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>내 부서 일정</span>
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>겸임 학년부 일정</span>
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>지필평가·휴업일</span>
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>내가 추가한 개별 일정</span>
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>타 부서 일정</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>겸임 학년 일정</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>내 Google 달력 기존 일정</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>지필·휴업일</span>
         </div>
 
         <!-- 요일 헤더 -->
@@ -162,33 +180,32 @@
           <div class="text-blue-500">토</div>
         </div>
 
-        <!-- 달력 그리드 -->
         <div id="calendarGrid" class="grid grid-cols-7 border-t border-l border-slate-200 rounded-lg overflow-hidden"></div>
       </div>
 
-      <!-- 우측: 선택한 날짜 상세 & 개별 일정 추가/삭제 패널 (4칸) -->
+      <!-- 우측: 날짜 상세 및 입력 폼 -->
       <div class="lg:col-span-4 flex flex-col gap-4">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex-1 flex flex-col">
           <div class="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
-              <span class="text-xs font-bold text-indigo-600">날짜별 부서 업무 & 개인 일정 관리</span>
-              <h3 id="selectedDateLabel" class="text-lg font-extrabold text-slate-900 mt-0.5">2026-03-03 (화)</h3>
+              <span class="text-xs font-bold text-indigo-600">선택 날짜 활동 내역 & 실시간 추가</span>
+              <h3 id="selectedDateLabel" class="text-lg font-extrabold text-slate-900 mt-0.5"></h3>
             </div>
-            <div class="flex items-center gap-1.5">
-              <label class="text-[11px] text-slate-500 flex items-center gap-1 cursor-pointer">
-                <input type="checkbox" id="detailOnlyMyDept" onchange="renderDayDetail()" class="rounded text-indigo-600" />
-                내 부서만
-              </label>
-            </div>
+            <label class="text-[11px] text-slate-600 flex items-center gap-1 cursor-pointer">
+              <input type="checkbox" id="detailOnlyMyDept" "renderDayDetail()" class="rounded text-indigo-600" />
+              내 부서만
+            </label>
           </div>
 
-          <!-- 해당 날짜 일정 리스트 -->
           <div id="dayEventList" class="my-3 space-y-2 max-h-[340px] overflow-y-auto pr-1 flex-1"></div>
 
-          <!-- 개별 일정 추가 폼 -->
-          <form onsubmit="addPersonalEvent(event)" class="mt-auto pt-3 border-t border-slate-200 space-y-2 bg-slate-50 p-3 rounded-xl">
-            <p class="text-xs font-bold text-slate-800">➕ 선택한 날짜에 개별/부서 활동 추가</p>
-            <input type="text" id="newEvtTitle" required placeholder="활동 내용 입력 (예: 교육과정 위원회, 자유학기 협의)" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <!-- 일정 추가 폼 (저장 시 로컬 DB 영구 저장 + Google 로그인 상태면 Google 달력 자동 등록) -->
+          <form "addPersonalEvent(event)" class="mt-auto pt-3 border-t border-slate-200 space-y-2 bg-slate-50 p-3 rounded-xl">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-bold text-slate-800">➕ 이 날짜에 일정 추가 (새로고침 영구 보존)</p>
+              <span id="formGoogleAutoBadge" class="text-[10px] font-bold text-slate-400">로컬 저장</span>
+            </div>
+            <input type="text" id="newEvtTitle" required placeholder="일정 내용 입력 (예: 교육과정 협의회, 수행평가 안내)" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
 
             <div class="grid grid-cols-2 gap-2">
               <select id="newEvtDept" class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white">
@@ -206,11 +223,11 @@
                 <option value="2학년부">2학년부</option>
                 <option value="3학년부">3학년부</option>
               </select>
-              <input type="time" id="newEvtTime" value="08:40" class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white" />
+              <input type="time" id="newEvtTime" value="08:50" class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white" />
             </div>
 
             <div class="grid grid-cols-2 gap-2">
-              <input type="text" id="newEvtPeriod" placeholder="교시/비고 (예: 3~4교시)" class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white" />
+              <input type="text" id="newEvtPeriod" placeholder="교시/비고 (예: 5교시)" class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white" />
               <select id="newEvtAlarm" class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white">
                 <option value="none">알람 없음</option>
                 <option value="10">10분 전 알람</option>
@@ -219,86 +236,74 @@
               </select>
             </div>
 
-            <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-2 rounded-lg transition">
-              이 날짜에 추가 및 저장
+            <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-2.5 rounded-lg transition">
+              달력에 영구 저장 (+ Google 로그인 시 내 달력 자동 등록)
             </button>
           </form>
         </div>
       </div>
     </section>
 
-    <!-- [탭 2] 구글 스프레드시트(월중행사계획서) 실시간 연동 -->
+    <!-- [탭 2] 월중행사계획서 시트 상시 연동 설정 -->
     <section id="view-gsheet" class="hidden space-y-5">
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 class="text-lg font-bold text-slate-900">📊 우리 학교 구글 스프레드시트(월중행사계획서) 연동</h2>
-            <p class="text-xs text-slate-500 mt-1">
-              월중행사계획서 시트의 <code>교무기획부</code> ~ <code>1학년/2학년/3학년</code> 열을 읽어 날짜별·부서별 활동으로 자동 등록합니다. 내년에 새 시트를 만들거나 탭(예: <code>2027.3월</code>)을 추가해도 주소만 넣으면 그대로 연동됩니다.
-            </p>
+            <h2 class="text-lg font-bold text-slate-900">📊 월중행사계획서 Google 스프레드시트 상시 연동</h2>
+            <p class="text-xs text-slate-500 mt-1">한 번 켜두면 새로고침하거나 달력의 월(<code>◀</code>/<code>▶</code>)을 넘길 때마다 해당 월 탭(예: <code>2026.3월</code>, <code>2026.11월</code>)을 자동으로 불러와 계속 연동됩니다.</p>
           </div>
-          <span id="sheetSyncStatusBadge" class="text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-            기본 시트 연결됨
-          </span>
+          <label class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-xl cursor-pointer">
+            <input type="checkbox" id="autoSyncSheetCheck" "toggleAutoSheetSync()" class="rounded text-emerald-600" />
+            <span class="text-xs font-extrabold text-emerald-800">새로고침·월 이동 시 자동 시트 연동 켜기</span>
+          </label>
         </div>
 
-        <div class="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">1. 월중행사계획서 Google 스프레드시트 URL</label>
+            <label class="block text-xs font-bold text-slate-700 mb-1">학교 월중행사계획서 Google 스프레드시트 주소</label>
             <div class="flex flex-wrap sm:flex-nowrap gap-2">
-              <input type="text" id="gsheetUrlInput"
-                value="https://docs.google.com/spreadsheets/d/1s42TPhliUE-0WviwwEWTjoWcQXj1Nc_LY9FH2vRubL0/edit?pli=1&gid=555489383#gid=555489383"
-                class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              <button onclick="syncFromGoogleSheetByUrl()" class="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm">
-                🔗 현재 링크(GID) 시트 바로 불러오기
+              <input type="text" id="gsheetUrlInput" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white" />
+              <button "manualSyncSheetUrl()" class="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg">
+                🔗 지금 즉시 연동·저장
               </button>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1">
-              * 팁: 구글 스프레드시트 우측 상단 <strong>[공유] → [일반 액세스: 링크가 있는 모든 사용자(뷰어)]</strong>로 열려 있으면 별도 설정 없이 누구나 실시간 동기화됩니다.
-            </p>
           </div>
 
-          <div class="pt-3 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end pt-3 border-t border-slate-200">
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">2. 시트 하단 탭 이름으로 월별 불러오기</label>
-              <input type="text" id="gsheetTabNameInput" value="2026.3월" placeholder="예: 2026.3월, 2026.11월, 2027.3월" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white" />
+              <label class="block text-xs font-bold text-slate-700 mb-1">특정 월 탭 이름 직접 지정</label>
+              <input type="text" id="gsheetTabNameInput" value="2026.3월" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white" />
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">학년도 전체 탭 일괄 불러오기 기준</label>
+              <label class="block text-xs font-bold text-slate-700 mb-1">연간 시트 전체 탭 일괄 연동</label>
               <select id="gsheetBatchYearSelect" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white">
-                <option value="2026" selected>2026학년도 탭 일괄 (2026.3월 ~ 2027.2월)</option>
-                <option value="2027">2027학년도 탭 일괄 (2027.3월 ~ 2028.2월)</option>
+                <option value="2026">2026학년도 전체 (2026.3월 ~ 2027.2월)</option>
+                <option value="2027">2027학년도 전체 (2027.3월 ~ 2028.2월)</option>
               </select>
             </div>
             <div class="flex gap-2">
-              <button onclick="syncFromGoogleSheetByTabName()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-lg">
-                해당 월 탭 불러오기
-              </button>
-              <button onclick="syncAllMonthsFromSheet()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 px-3 rounded-lg">
-                학년도 전체 탭 동기화
-              </button>
+              <button "syncSheetByTabInput()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-lg">탭 불러오기</button>
+              <button "syncAllYearSheetTabs()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 px-3 rounded-lg">전 학년도 일괄 연동</button>
             </div>
           </div>
         </div>
 
-        <!-- 시트 동기화 로그/미리보기 -->
-        <div id="sheetSyncLog" class="mt-4 text-xs text-slate-600 bg-slate-100 rounded-lg p-3">
-          💡 현재 2026.3월 월중행사계획서(12개 부서 + 행정실) 데이터가 기본 반영되어 있으며, 위 버튼을 누르면 시트의 최신 수정 내역을 실시간으로 다시 읽어옵니다.
+        <div class="flex items-center justify-between text-xs bg-slate-100 rounded-lg p-3">
+          <span id="sheetSyncLog" class="text-slate-700 font-medium">상시 자동 연동 대기 중...</span>
+          <button "restoreDeletedSheetEvents()" class="text-indigo-600 hover:underline font-bold shrink-0 ml-3">숨긴(삭제한) 시트 일정 복구</button>
         </div>
       </div>
     </section>
 
-    <!-- [탭 3] 연간 학사일정 양식(엑셀·PDF·한글) 첨부 -->
+    <!-- [탭 3] 연간 학사일정 파일(Excel/PDF/HWPX) 첨부 -->
     <section id="view-upload" class="hidden space-y-5">
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <h2 class="text-lg font-bold text-slate-900">📂 연간 학사일정표·시수확보 계획 파일 첨부 (Excel · PDF · HWPX)</h2>
-        <p class="text-xs text-slate-500 mt-1">
-          내년도 연간 학사일정표(<code>.xlsx</code>, <code>.xls</code>, <code>.csv</code>, <code>.pdf</code>, <code>.hwpx</code>)를 업로드하면 요일별 시수 표기(<code>[5 5 5]</code> 등), 시간표 교체, 지필평가·창체 행사를 읽어 12개 부서로 자동 배정합니다.
-        </p>
+        <h2 class="text-lg font-bold text-slate-900">📂 연간 학사일정표·시수확보 계획 파일 업로드</h2>
+        <p class="text-xs text-slate-500 mt-1">업로드 후 반영된 연간 학사일정 역시 브라우저 영구 저장소에 자동 보관되며, Google 로그인 상태라면 내 Google 달력으로도 자동 동기화할 수 있습니다.</p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">적용 학년도 선택</label>
+            <label class="block text-xs font-bold text-slate-700 mb-1">적용 학년도</label>
             <select id="targetYearSelect" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white">
               <option value="2027" selected>2027학년도 (2027.03 ~ 2028.02)</option>
               <option value="2026">2026학년도 (2026.03 ~ 2027.02)</option>
@@ -307,35 +312,27 @@
           <div>
             <label class="block text-xs font-bold text-slate-700 mb-1">반영 방식</label>
             <select id="mergeModeSelect" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white">
-              <option value="merge" selected>기존 월중행사·개인 일정에 병합</option>
-              <option value="replace">파일 업로드 공식 일정만 새로 교체 (개인·월중행사 유지)</option>
+              <option value="merge" selected>기존 일정에 병합 (내가 입력한 일정·월중행사 유지)</option>
+              <option value="replace">이전 파일 업로드 일정만 교체 (내가 입력한 일정·월중행사 유지)</option>
             </select>
           </div>
         </div>
 
         <label for="fileUploadInput" class="border-2 border-dashed border-indigo-300 hover:border-indigo-500 bg-indigo-50/40 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition text-center">
           <div class="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-2xl mb-3">📄</div>
-          <p class="text-sm font-bold text-slate-800">클릭하여 연간 학사일정표 파일 업로드 (.xlsx, .csv, .pdf, .hwpx)</p>
-          <p class="text-xs text-slate-500 mt-1">구형 .hwp 파일은 한글에서 [다른 이름으로 저장 → .hwpx 또는 .pdf]로 저장 후 업로드해 주세요.</p>
-          <input id="fileUploadInput" type="file" accept=".xlsx,.xls,.csv,.pdf,.hwpx,.txt" onchange="handleFileUpload(event)" class="hidden" />
+          <p class="text-sm font-bold text-slate-800">클릭하여 연간 학사일정 파일 선택 (.xlsx, .xls, .csv, .pdf, .hwpx)</p>
+          <input id="fileUploadInput" type="file" accept=".xlsx,.xls,.csv,.pdf,.hwpx,.txt" "handleFileUpload(event)" class="hidden" />
         </label>
 
         <div id="parsePreviewContainer" class="hidden mt-6">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-bold text-slate-900">🔍 추출된 학사일정 미리보기 (<span id="parsedCount">0</span>건)</h3>
-            <button onclick="applyParsedEvents()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg">
-              ✅ 달력에 일괄 반영하기
-            </button>
+            <h3 class="text-sm font-bold text-slate-900">🔍 추출된 학사일정 (<span id="parsedCount">0</span>건)</h3>
+            <button "applyParsedEvents()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg">✅ 영구 반영하기</button>
           </div>
           <div class="max-h-72 overflow-y-auto border border-slate-200 rounded-xl">
             <table class="w-full text-left text-xs">
               <thead class="bg-slate-100 text-slate-700 sticky top-0">
-                <tr>
-                  <th class="p-2.5">날짜</th>
-                  <th class="p-2.5">일정·활동 내용</th>
-                  <th class="p-2.5">자동 배정 부서</th>
-                  <th class="p-2.5">시수·비고</th>
-                </tr>
+                <tr><th class="p-2.5">날짜</th><th class="p-2.5">내용</th><th class="p-2.5">배정 부서</th><th class="p-2.5">비고</th></tr>
               </thead>
               <tbody id="parsePreviewBody" class="divide-y divide-slate-100"></tbody>
             </table>
@@ -344,1005 +341,65 @@
       </div>
     </section>
 
-    <!-- [탭 4] 12개 부서 키워드 설정 -->
+    <!-- [탭 4] 12개 부서 키워드 -->
     <section id="view-dept" class="hidden space-y-5">
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
         <h2 class="text-lg font-bold text-slate-900">🏢 우리 학교 12개 부서 자동분류 키워드 설정</h2>
-        <p class="text-xs text-slate-500 mt-1">
-          구글 시트(월중행사계획서)는 각 부서 열에서 직접 가져오며, 연간 학사일정 파일(엑셀·PDF·한글) 업로드 시에는 아래 키워드로 12개 부서를 자동 배정합니다.
-        </p>
-        <div id="deptRuleList" class="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        <div id="deptRuleList" class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         <div class="mt-5 flex justify-end">
-          <button onclick="saveDeptRules()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm">
-            💾 12개 부서 키워드 저장 및 재적용
-          </button>
+          <button "saveDeptRules()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg">💾 부서 규칙 영구 저장</button>
         </div>
       </div>
     </section>
 
-    <!-- [탭 5] 내 알람 & 구글 API 설정 -->
+    <!-- [탭 5] Google 연동 설정 & 알람·백업 -->
     <section id="view-settings" class="hidden grid grid-cols-1 md:grid-cols-2 gap-5">
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-base font-bold text-slate-900">🔔 설정된 알람 목록</h2>
-          <button onclick="testNotification()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold px-3 py-1.5 rounded-lg">
-            알람 테스트
-          </button>
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+        <h2 class="text-base font-bold text-slate-900">🔑 Google 로그인 & 자동 달력 반영 설정</h2>
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+          <p class="font-bold text-slate-700">현재 접속 도메인 (Google 콘솔 '승인된 자바스크립트 원본' 등록값):</p>
+          <code id="settingsOriginDisplay" class="text-indigo-700 font-bold block"></code>
         </div>
-        <div id="alarmListContainer" class="space-y-2 max-h-80 overflow-y-auto"></div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Google OAuth Client ID (.apps.googleusercontent.com 포함)</label>
+          <input type="text" id="googleClientIdInput" placeholder="1234567890-xxx.apps.googleusercontent.com" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">일정을 넣을 대상 Google Calendar ID</label>
+          <input type="text" id="googleCalendarIdInput" value="primary" placeholder="로그인한 본인 달력은 primary 입력" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2" />
+        </div>
+        <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer pt-1">
+          <input type="checkbox" id="autoPushGoogleCheck" checked "saveGoogleConfig(false)" class="rounded text-indigo-600" />
+          <span>로그인 시 내 부서 학사일정 및 신규 입력 일정을 내 Google 달력에 자동 입력</span>
+        </label>
+        <div class="flex gap-2">
+          <button "saveGoogleConfig(true)" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-lg">설정 저장</button>
+          <button id="logoutBtnInSettings" "logoutGoogle()" class="hidden bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold px-4 py-2.5 rounded-lg">연동 해제(로그아웃)</button>
+        </div>
       </div>
 
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <h2 class="text-base font-bold text-slate-900 mb-2">🔑 Google 로그인 & 공유 달력 연동 설정</h2>
-        <p class="text-xs text-slate-500 mb-4">
-          Google Cloud Console에서 발급한 OAuth Client ID를 등록하면 실제 Google Calendar 직접 쓰기 및 비공개 Google 스프레드시트 읽기가 모두 활성화됩니다.
-        </p>
-        <div class="space-y-3">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Google OAuth Client ID</label>
-            <input type="text" id="googleClientIdInput" placeholder="예: 1234567890-xxx.apps.googleusercontent.com" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2" />
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-bold text-slate-900">🔔 내 알람 목록 & 데이터 파일 백업</h2>
+          <button "testNotification()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold px-3 py-1.5 rounded-lg">알람 테스트</button>
+        </div>
+        <div id="alarmListContainer" class="space-y-2 max-h-48 overflow-y-auto"></div>
+
+        <div class="pt-4 border-t border-slate-200 space-y-2">
+          <p class="text-xs font-bold text-slate-800">💾 전체 일정 파일 백업 / 복원</p>
+          <div class="flex gap-2">
+            <button "exportBackupJson()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold py-2 rounded-lg">JSON 백업 다운로드</button>
+            <label class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold py-2 rounded-lg text-center cursor-pointer">
+              백업 파일 불러오기
+              <input type="file" accept=".json" "importBackupJson(event)" class="hidden" />
+            </label>
           </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">연동할 Google Calendar ID</label>
-            <input type="text" id="googleCalendarIdInput" value="primary" placeholder="내 기본 달력은 primary, 학교 공유달력은 공유달력 ID" class="w-full text-xs border border-slate-300 rounded-lg px-3 py-2" />
-          </div>
-          <button onclick="saveGoogleConfig()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-lg">
-            설정 저장
-          </button>
         </div>
       </div>
     </section>
 
   </main>
 
-  <script>
-    if (window.pdfjsLib) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
-
-    // 1. 학교 12개 공식 부서 목록 및 자동 분류 키워드
-    const DEPT_NAMES = [
-      '교무기획부', '교육연구부', '학생인권안전부', '미래교육혁신부',
-      '민주시민자치부', '진로상담부', '과학환경부', '체육예술건강부',
-      '교육정보부', '1학년부', '2학년부', '3학년부'
-    ];
-
-    const DEFAULT_DEPT_RULES = {
-      '교무기획부': ['입학식', '개학식', '종업식', '졸업식', '부장교사협의회', '학부모총회', '교직원 자치회의', '교직원자치회의', '교직원 자율연수', '시간표운영', '평정회', '생기부', '재량휴업일', '대체공휴일', '출결통계'],
-      '교육연구부': ['지필평가', '진단평가', '맞춤형평가', '성적이의신청', '전문적학습공동체', '전학공', '학부모수업공개', '교수학습', '교육과정운영계획', '교과협의록', '독서교육', '체험학습불가기간'],
-      '학생인권안전부': ['학교폭력예방', '성폭력예방', '민방위훈련', '심폐소생술', '안전', '교외생활지도', '배움터', '아침맞이'],
-      '미래교육혁신부': ['원냉프로젝트', '미래교육혁신', '자율동아리'],
-      '민주시민자치부': ['자치(', '학급자치회의', '리더십교육', '학급회장단', '인성교육', '인성브랜드', '평화교육주간', '양성평등', '다문화이해', '언어문화개선', '학부모자치회', '교복나눔'],
-      '진로상담부': ['학급집단상담', '학습상담주간', '학급상담', '학부모상담주간', '생명존중', '진로체험', '꿈·끼', '또래관계', '장애이해', '위클래스'],
-      '과학환경부': ['과학주간', '발명', '과학실', '유해화학물질', '탄소중립', '폐수', '환경'],
-      '체육예술건강부': ['체육주간', '동아리활동', '운동부', '급식지도', '체육장비', '스포츠'],
-      '교육정보부': ['정보통신윤리', '스마트폰과의존', '나이스', 'e알리미', '메신저', '개인정보', '태블릿', '사이버보안', '홈페이지', '물품대장'],
-      '1학년부': ['1학년', '자유학기', '인성함양프로그램'],
-      '2학년부': ['2학년'],
-      '3학년부': ['3학년', '3학년봉사', '3학년 봉사']
-    };
-
-    // 구글 시트 열 헤더명 -> 앱 내 표준 12개 부서명 정규화
-    const SHEET_HEADER_MAP = {
-      '교무기획부': '교무기획부',
-      '교육연구부': '교육연구부',
-      '학생인권안전부': '학생인권안전부',
-      '미래교육혁신부': '미래교육혁신부',
-      '민주시민자치부': '민주시민자치부',
-      '진로상담부': '진로상담부',
-      '진로진학부': '진로상담부',
-      '과학환경부': '과학환경부',
-      '자연과학부': '과학환경부',
-      '체육예술건강부': '체육예술건강부',
-      '교육정보부': '교육정보부',
-      '1학년': '1학년부',
-      '1학년부': '1학년부',
-      '2학년': '2학년부',
-      '2학년부': '2학년부',
-      '3학년': '3학년부',
-      '3학년부': '3학년부',
-      '행정실': '행정실'
-    };
-
-    // 2. 공유된 2026.3월 월중행사계획서 시트 + 연간 학사일정 주요 초기 데이터
-    const INITIAL_EVENTS = [
-      { id: 'm1', date: '2026-03-02', title: '대체공휴일', dept: '교무기획부', time: '09:00', meta: '월중행사계획서 (공휴일)', category: 'exam', source: 'gsheet', alarm: 'none' },
-      // 3월 3일 (화) - 부서별 실제 시트 데이터
-      { id: 'm2', date: '2026-03-03', title: '담임교사교육관소개(1교시) · 입학식 및 개학식(2교시) · 학교폭력예방교육(3교시)', dept: '교무기획부', time: '08:50', meta: '수업(자율,자율,수5,1,2)', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm3', date: '2026-03-03', title: '1학기 교수학습 및 평가 운영 계획 취합·점검 / 맞춤형 학업성취도 자율평가 환경 점검', dept: '교육연구부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm4', date: '2026-03-03', title: '배움터 안전지키미 운영', dept: '학생인권안전부', time: '08:30', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm5', date: '2026-03-03', title: '언어문화개선의 달 · 학생자치회 운영위 회의', dept: '민주시민자치부', time: '13:20', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm6', date: '2026-03-03', title: '전입교사 나이스 인증서 발급 신청, 학교홈페이지, e알리미 정비', dept: '교육정보부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm7', date: '2026-03-03', title: '학급친교시간(1)·입학식(2)·학폭예방(3)·자유학기 안내(4교시) 및 주제선택 가통 발송', dept: '1학년부', time: '08:50', meta: '1학년 학년부 일정', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm8', date: '2026-03-03', title: '학급친교시간(1교시) · 개학식(2교시) · 학교폭력예방교육(3교시)', dept: '2학년부', time: '08:50', meta: '2학년 학년부 일정', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm9', date: '2026-03-03', title: '학급친교시간(1교시) · 개학식(2교시) · 학교폭력예방교육(3교시)', dept: '3학년부', time: '08:50', meta: '3학년 학년부 일정', category: 'official', source: 'gsheet', alarm: 'none' },
-      // 3월 4일 (수)
-      { id: 'm10', date: '2026-03-04', title: '화요일 시간표 운영 (자치 7교시)', dept: '교무기획부', time: '08:50', meta: '시간표 교체 운영', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm11', date: '2026-03-04', title: '학급언어규칙만들기(7교시)', dept: '민주시민자치부', time: '15:10', meta: '자치 7교시', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm12', date: '2026-03-04', title: '진로상담실 운영 안내 홍보 · 의정부도시교육재단 프로그램 신청', dept: '진로상담부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm13', date: '2026-03-04', title: '과학실 안전점검 · 유해화학물질 자체점검', dept: '과학환경부', time: '10:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm14', date: '2026-03-04', title: '경기도교육청 메신저 정비, 개인정보활용동의 가정통신문 발송', dept: '교육정보부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      // 3월 5일 ~ 13일 주요 부서 일정
-      { id: 'm15', date: '2026-03-05', title: '학부모자치회 임원선출 공고', dept: '민주시민자치부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm16', date: '2026-03-05', title: '자유학기 주제선택 프로그램 학생 배정(3,4교시)', dept: '1학년부', time: '10:45', meta: '1학년부 일정', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm17', date: '2026-03-06', title: '연구부 연간운영계획 · (교내1차)교과별 교수학습 및 평가 컨설팅 · 기초학력 진단보정 연수', dept: '교육연구부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm18', date: '2026-03-06', title: '아침맞이 안전지도계획 수립', dept: '학생인권안전부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm19', date: '2026-03-09', title: '전문적학습공동체 신청', dept: '교육연구부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm20', date: '2026-03-09', title: '학급집단상담주간(3/9~3/13) 및 각 학년 진로체험 사전 준비', dept: '진로상담부', time: '09:00', meta: '전 학년 학급집단상담주간', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm21', date: '2026-03-09', title: '교내 발명아이디어대회(3.9~3.13)', dept: '과학환경부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm22', date: '2026-03-09', title: '1학기 급식지도계획 수립', dept: '체육예술건강부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm23', date: '2026-03-09', title: '학급용 태블릿 정비(3.9.~3.20.)', dept: '교육정보부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm24', date: '2026-03-13', title: '부장교사협의회', dept: '교무기획부', time: '14:30', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: '60' },
-      { id: 'm25', date: '2026-03-13', title: '미래교육혁신 연간계획 수립', dept: '미래교육혁신부', time: '09:00', meta: '2026.3월 월중행사계획서', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm26', date: '2026-03-17', title: '학부모총회 [4 4 4]', dept: '교무기획부', time: '13:30', meta: '민주시민자치부·1~3학년부 공동', category: 'official', source: 'gsheet', alarm: '60' },
-      { id: 'm27', date: '2026-03-18', title: '수업(1,2,3,4,화요일5,6,7교시) 교체 운영 [7 7 7]', dept: '교무기획부', time: '08:50', meta: '학사일정 시수확보표 연계', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm28', date: '2026-03-20', title: '수업(6,2,3,4,5,자치) · 민방위훈련 및 학급회장단선거', dept: '교무기획부', time: '08:50', meta: '민주시민자치부·전 학년부 연계', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm29', date: '2026-03-23', title: '진단평가(2·3학년) / 맞춤형평가(1학년) 실시', dept: '교육연구부', time: '08:50', meta: '1·2·3학년부 동시 실시', category: 'exam', source: 'gsheet', alarm: '1440' },
-      { id: 'm30', date: '2026-03-25', title: '동아리활동 5,6교시 · 수업(1,5,3,4)', dept: '교무기획부', time: '13:20', meta: '1·2·3학년부 동아리활동', category: 'official', source: 'gsheet', alarm: 'none' },
-      { id: 'm31', date: '2026-03-30', title: '교직원자치회의 & 3R’s[읽기·쓰기·셈하기] 평가 실시', dept: '교무기획부', time: '15:00', meta: '교육연구부·민주시민자치부 연계', category: 'official', source: 'gsheet', alarm: 'none' },
-      // 연간 학사일정 주요 샘플 (문서 1 연계)
-      { id: 'a1', date: '2026-06-30', title: '1학기 기말 지필평가(2,3학년) ~7/2 <체험학습불가기간 6/30~7/7>', dept: '교육연구부', time: '08:50', meta: '학년별 시수 [3 3 3]', category: 'exam', source: 'file', alarm: '1440' },
-      { id: 'a2', date: '2026-07-03', title: '성적이의신청기간(7/3~7/7) · 다문화이해교육(5,6교시) · 생기부 1차 점검', dept: '교무기획부', time: '09:00', meta: '교육연구부·민주시민자치부 연계', category: 'official', source: 'file', alarm: '60' },
-      { id: 'a3', date: '2026-07-13', title: '원냉프로젝트주간(꿈·끼탐색주간 7/13~7/20) · 1학년 진로체험(3,4교시)', dept: '미래교육혁신부', time: '10:45', meta: '진로상담부·1학년부 연계', category: 'official', source: 'file', alarm: 'none' }
-    ];
-
-    // 상태 관리
-    let state = {
-      currentYear: 2026,
-      currentMonth: 2, // 0-based (2 = 3월)
-      selectedDate: '2026-03-03',
-      myDept: localStorage.getItem('ms_my_dept_v2') || '교무기획부',
-      mySubGrade: localStorage.getItem('ms_my_subgrade_v2') || 'NONE',
-      events: JSON.parse(localStorage.getItem('ms_events_v2') || 'null') || INITIAL_EVENTS,
-      deptRules: JSON.parse(localStorage.getItem('ms_dept_rules_v2') || 'null') || DEFAULT_DEPT_RULES,
-      gsheetUrl: localStorage.getItem('ms_gsheet_url_v2') || 'https://docs.google.com/spreadsheets/d/1s42TPhliUE-0WviwwEWTjoWcQXj1Nc_LY9FH2vRubL0/edit?pli=1&gid=555489383#gid=555489383',
-      parsedStaging: [],
-      googleUser: JSON.parse(localStorage.getItem('ms_google_user_v2') || 'null'),
-      googleClientId: localStorage.getItem('ms_google_client_id_v2') || '',
-      googleCalendarId: localStorage.getItem('ms_google_cal_id_v2') || 'primary',
-      accessToken: null
-    };
-
-    window.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('myDeptSelect').value = state.myDept;
-      document.getElementById('mySubGradeSelect').value = state.mySubGrade;
-      document.getElementById('gsheetUrlInput').value = state.gsheetUrl;
-      document.getElementById('googleClientIdInput').value = state.googleClientId;
-      document.getElementById('googleCalendarIdInput').value = state.googleCalendarId;
-      updateGoogleLoginUI();
-      renderCalendar();
-      renderDayDetail();
-      renderDeptRulesEditor();
-      renderAlarmList();
-      startAlarmWatcher();
-    });
-
-    function saveEvents() {
-      localStorage.setItem('ms_events_v2', JSON.stringify(state.events));
-      renderAlarmList();
-    }
-
-    function switchTab(tabName) {
-      ['calendar', 'gsheet', 'upload', 'dept', 'settings'].forEach(t => {
-        document.getElementById(`view-${t}`).classList.toggle('hidden', t !== tabName);
-        const btn = document.getElementById(`tab-${t}`);
-        btn.className = t === tabName
-          ? 'tab-btn px-4 py-2.5 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 whitespace-nowrap'
-          : 'tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap';
-      });
-    }
-
-    function handleDeptChange() {
-      state.myDept = document.getElementById('myDeptSelect').value;
-      state.mySubGrade = document.getElementById('mySubGradeSelect').value;
-      localStorage.setItem('ms_my_dept_v2', state.myDept);
-      localStorage.setItem('ms_my_subgrade_v2', state.mySubGrade);
-      renderCalendar();
-      renderDayDetail();
-    }
-
-    // 내 부서 / 겸임 학년부 해당 여부 판정
-    function getMatchType(evt) {
-      if (evt.category === 'personal') return 'personal';
-      if (state.myDept === 'ALL') return 'primary';
-      if (evt.dept === state.myDept) return 'primary';
-      if (state.mySubGrade !== 'NONE' && evt.dept === state.mySubGrade) return 'subgrade';
-
-      const primaryWords = state.deptRules[state.myDept] || [];
-      if (evt.source === 'file' && primaryWords.some(w => (evt.title + ' ' + (evt.meta || '')).includes(w))) {
-        return 'primary';
-      }
-      if (state.mySubGrade !== 'NONE' && evt.source === 'file') {
-        const subWords = state.deptRules[state.mySubGrade] || [];
-        if (subWords.some(w => (evt.title + ' ' + (evt.meta || '')).includes(w))) return 'subgrade';
-      }
-      return 'other';
-    }
-
-    function classifyDeptByText(text) {
-      for (const dept of DEPT_NAMES) {
-        const words = state.deptRules[dept] || [];
-        if (words.some(w => text.includes(w))) return dept;
-      }
-      return '교무기획부';
-    }
-
-    // ==========================================
-    // 달력 및 우측 일자별 상세 렌더링
-    // ==========================================
-    function renderCalendar() {
-      const year = state.currentYear;
-      const month = state.currentMonth;
-      document.getElementById('calendarTitle').textContent = `${year}년 ${month + 1}월`;
-
-      const firstDay = new Date(year, month, 1).getDay();
-      const lastDate = new Date(year, month + 1, 0).getDate();
-      const onlyMine = document.getElementById('onlyMyDeptCheck').checked;
-
-      const grid = document.getElementById('calendarGrid');
-      grid.innerHTML = '';
-
-      for (let i = 0; i < firstDay; i++) {
-        const empty = document.createElement('div');
-        empty.className = 'calendar-cell bg-slate-50/70 border-r border-b border-slate-200 p-1.5';
-        grid.appendChild(empty);
-      }
-
-      for (let d = 1; d <= lastDate; d++) {
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const dow = new Date(year, month, d).getDay();
-        const isSelected = state.selectedDate === dateStr;
-
-        let dayEvents = state.events.filter(e => e.date === dateStr);
-        if (onlyMine && state.myDept !== 'ALL') {
-          dayEvents = dayEvents.filter(e => getMatchType(e) !== 'other');
-        }
-
-        const cell = document.createElement('div');
-        cell.onclick = () => {
-          state.selectedDate = dateStr;
-          renderCalendar();
-          renderDayDetail();
-        };
-        cell.className = `calendar-cell cursor-pointer border-r border-b border-slate-200 p-1.5 flex flex-col gap-1 ${
-          isSelected ? 'ring-2 ring-inset ring-indigo-600 bg-indigo-50/30' : 'bg-white'
-        }`;
-
-        const numColor = dow === 0 ? 'text-rose-500' : dow === 6 ? 'text-blue-500' : 'text-slate-700';
-        cell.innerHTML = `
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold ${numColor} ${isSelected ? 'bg-indigo-600 text-white px-1.5 py-0.5 rounded-md' : ''}">${d}</span>
-            ${dayEvents.length > 0 ? `<span class="text-[10px] text-slate-400 font-semibold">${dayEvents.length}건</span>` : ''}
-          </div>
-        `;
-
-        const listWrap = document.createElement('div');
-        listWrap.className = 'space-y-1 overflow-hidden';
-
-        dayEvents.slice(0, 3).forEach(evt => {
-          const mType = getMatchType(evt);
-          let cls = 'bg-slate-100 text-slate-600';
-          if (mType === 'personal') cls = 'bg-amber-100 text-amber-900 font-semibold border border-amber-300';
-          else if (evt.category === 'exam') cls = 'bg-rose-100 text-rose-800 font-semibold';
-          else if (mType === 'primary' && state.myDept !== 'ALL') cls = 'bg-indigo-600 text-white font-semibold shadow-sm';
-          else if (mType === 'subgrade') cls = 'bg-emerald-600 text-white font-semibold shadow-sm';
-          else if (state.myDept === 'ALL') cls = 'bg-indigo-50 text-indigo-900 border border-indigo-200';
-
-          const chip = document.createElement('div');
-          chip.className = `event-chip truncate px-1.5 py-0.5 rounded ${cls}`;
-          chip.textContent = (evt.alarm && evt.alarm !== 'none' ? '🔔 ' : '') + (state.myDept === 'ALL' ? `[${evt.dept.replace('부','')}] ` : '') + evt.title;
-          listWrap.appendChild(chip);
-        });
-
-        if (dayEvents.length > 3) {
-          const more = document.createElement('div');
-          more.className = 'text-[10px] text-indigo-600 font-semibold pl-1';
-          more.textContent = `+ ${dayEvents.length - 3}건 더보기`;
-          listWrap.appendChild(more);
-        }
-
-        cell.appendChild(listWrap);
-        grid.appendChild(cell);
-      }
-    }
-
-    function changeMonth(delta) {
-      state.currentMonth += delta;
-      if (state.currentMonth < 0) { state.currentMonth = 11; state.currentYear--; }
-      if (state.currentMonth > 11) { state.currentMonth = 0; state.currentYear++; }
-      renderCalendar();
-    }
-
-    function jumpToYearMonth(y, mIdx) {
-      state.currentYear = y;
-      state.currentMonth = mIdx;
-      state.selectedDate = `${y}-${String(mIdx + 1).padStart(2, '0')}-03`;
-      renderCalendar();
-      renderDayDetail();
-    }
-
-    function renderDayDetail() {
-      const days = ['일', '월', '화', '수', '목', '금', '토'];
-      const dt = new Date(state.selectedDate + 'T00:00:00');
-      document.getElementById('selectedDateLabel').textContent = `${state.selectedDate} (${days[dt.getDay()]})`;
-
-      const onlyMineDetail = document.getElementById('detailOnlyMyDept').checked;
-      let dayEvents = state.events.filter(e => e.date === state.selectedDate);
-      if (onlyMineDetail && state.myDept !== 'ALL') {
-        dayEvents = dayEvents.filter(e => getMatchType(e) !== 'other');
-      }
-
-      // 내 부서 일정을 맨 위로 정렬
-      dayEvents.sort((a, b) => {
-        const score = t => (t === 'personal' ? 0 : t === 'primary' ? 1 : t === 'subgrade' ? 2 : 3);
-        return score(getMatchType(a)) - score(getMatchType(b));
-      });
-
-      const container = document.getElementById('dayEventList');
-      if (dayEvents.length === 0) {
-        container.innerHTML = `<div class="text-center py-8 text-xs text-slate-400">이 날짜에 표시할 일정이 없습니다.<br>아래 입력창에서 개별 활동을 자유롭게 추가하세요.</div>`;
-        return;
-      }
-
-      container.innerHTML = dayEvents.map(evt => {
-        const mType = getMatchType(evt);
-        const cardStyle = mType === 'primary' && state.myDept !== 'ALL'
-          ? 'border-indigo-400 bg-indigo-50/60'
-          : mType === 'subgrade'
-          ? 'border-emerald-400 bg-emerald-50/60'
-          : mType === 'personal'
-          ? 'border-amber-400 bg-amber-50/60'
-          : 'border-slate-200 bg-white';
-
-        return `
-          <div class="p-3 rounded-xl border ${cardStyle}">
-            <div class="flex items-start justify-between gap-2">
-              <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-1.5 mb-1">
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">${evt.dept}</span>
-                  ${evt.source === 'gsheet' ? `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">월중행사시트</span>` : ''}
-                  ${evt.time ? `<span class="text-[10px] text-slate-500">⏰ ${evt.time}</span>` : ''}
-                </div>
-                <p class="text-xs font-bold text-slate-900 break-words">${evt.title}</p>
-                ${evt.meta ? `<p class="text-[11px] text-slate-600 mt-0.5">${evt.meta}</p>` : ''}
-                ${evt.alarm && evt.alarm !== 'none' ? `<p class="text-[10px] text-amber-700 font-semibold mt-1">🔔 알람 (${evt.alarm === '1440' ? '하루 전' : evt.alarm + '분 전'})</p>` : ''}
-              </div>
-              <div class="flex flex-col gap-1 shrink-0">
-                <button onclick="sendSingleEventToGoogle('${evt.id}')" class="text-[10px] bg-white border border-slate-300 hover:bg-slate-100 px-2 py-1 rounded font-semibold text-slate-700">G달력+</button>
-                <button onclick="deleteEvent('${evt.id}')" class="text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-600 px-2 py-1 rounded font-semibold">삭제</button>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function addPersonalEvent(e) {
-      e.preventDefault();
-      const title = document.getElementById('newEvtTitle').value.trim();
-      const dept = document.getElementById('newEvtDept').value;
-      const time = document.getElementById('newEvtTime').value;
-      const period = document.getElementById('newEvtPeriod').value.trim();
-      const alarm = document.getElementById('newEvtAlarm').value;
-      if (!title) return;
-
-      if (alarm !== 'none' && 'Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
-
-      state.events.push({
-        id: 'usr_' + Date.now(),
-        date: state.selectedDate,
-        title,
-        dept,
-        time,
-        meta: period || '개별 추가 일정',
-        category: dept === '개인일정' ? 'personal' : 'official',
-        source: 'personal',
-        alarm
-      });
-      saveEvents();
-      document.getElementById('newEvtTitle').value = '';
-      document.getElementById('newEvtPeriod').value = '';
-      renderCalendar();
-      renderDayDetail();
-    }
-
-    function deleteEvent(id) {
-      state.events = state.events.filter(e => e.id !== id);
-      saveEvents();
-      renderCalendar();
-      renderDayDetail();
-    }
-
-    // ==========================================
-    // Google 스프레드시트(월중행사계획서) 실시간 파서
-    // ==========================================
-    function extractSheetInfo(url) {
-      const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-      const gidMatch = url.match(/[?&#]gid=([0-9]+)/);
-      return {
-        spreadsheetId: idMatch ? idMatch[1] : '',
-        gid: gidMatch ? gidMatch[1] : '0'
-      };
-    }
-
-    // JSONP 방식으로 CORS 제약 없이 Google 스프레드시트 데이터 로드
-    function fetchGvizJsonp(spreadsheetId, queryParam) {
-      return new Promise((resolve, reject) => {
-        const cbName = 'gvizCb_' + Math.random().toString(36).slice(2, 10);
-        const script = document.createElement('script');
-        const timer = setTimeout(() => {
-          cleanup();
-          reject(new Error('시트 응답 시간 초과 (공유 권한이 [링크가 있는 모든 사용자 보기]인지 확인해 주세요)'));
-        }, 10000);
-
-        function cleanup() {
-          clearTimeout(timer);
-          delete window[cbName];
-          if (script.parentNode) script.parentNode.removeChild(script);
-        }
-
-        window[cbName] = (resp) => {
-          cleanup();
-          if (!resp || resp.status === 'error') {
-            reject(new Error(resp?.errors?.[0]?.detailed_message || '시트 탭을 찾을 수 없거나 열람 권한이 제한되어 있습니다.'));
-          } else {
-            resolve(resp.table);
-          }
-        };
-
-        script.onerror = () => {
-          cleanup();
-          reject(new Error('Google 시트 연결 실패 (비공개 시트인 경우 Google 로그인 후 이용해 주세요)'));
-        };
-
-        script.src = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=responseHandler:${cbName}&${queryParam}`;
-        document.body.appendChild(script);
-      });
-    }
-
-    // 월중행사계획서 테이블 -> 날짜별·12개 부서별 이벤트 배열 변환
-    function parseMonthlyPlanTable(table, fallbackTabName = '') {
-      const cols = table.cols || [];
-      const rows = table.rows || [];
-
-      // 1. 연도·월 판별 (1행 제목 예: "2026학년도 (2026.3)월 중 행사 계획서" 또는 탭 이름 "2026.3월")
-      const headerLabelsJoined = cols.map(c => c.label || '').join(' ');
-      const firstRowsJoined = rows.slice(0, 3).map(r => (r.c || []).map(cell => cell?.v || '').join(' ')).join(' ');
-      const ymSource = headerLabelsJoined + ' ' + firstRowsJoined + ' ' + fallbackTabName;
-
-      let year = state.currentYear;
-      let month = state.currentMonth + 1;
-      const ymMatch = ymSource.match(/(202\d)\s*\.\s*(\d{1,2})/);
-      if (ymMatch) {
-        year = parseInt(ymMatch[1], 10);
-        month = parseInt(ymMatch[2], 10);
-      }
-
-      // 2. 열(Column)별 부서 매핑 찾기 (C열 교무기획부 ~ O열 행정실, P열 이후 집계열 무시)
-      let colDeptMap = {};
-      cols.forEach((col, idx) => {
-        if (idx < 2 || idx > 15) return;
-        const lbl = (col.label || '').trim();
-        for (const [rawKey, mappedDept] of Object.entries(SHEET_HEADER_MAP)) {
-          if (lbl.includes(rawKey)) {
-            colDeptMap[idx] = mappedDept;
-            break;
-          }
-        }
-      });
-
-      // 만약 gviz가 부서명을 cols.label이 아닌 상단 row에 넣은 경우 탐색
-      let startRowIdx = 0;
-      if (Object.keys(colDeptMap).length === 0) {
-        for (let rIdx = 0; rIdx < Math.min(5, rows.length); rIdx++) {
-          const cells = rows[rIdx].c || [];
-          const rowText = cells.map(c => String(c?.v || '')).join(' ');
-          if (rowText.includes('교무기획부')) {
-            cells.forEach((cell, cIdx) => {
-              if (cIdx < 2 || cIdx > 15) return;
-              const txt = String(cell?.v || '').trim();
-              if (SHEET_HEADER_MAP[txt]) colDeptMap[cIdx] = SHEET_HEADER_MAP[txt];
-            });
-            startRowIdx = rIdx + 1;
-            break;
-          }
-        }
-      }
-
-      // 기본 열 순서 폴백 (일 | 요일 | 교무기획부 | 교육연구부 | ... | 1학년 | 행정실)
-      if (Object.keys(colDeptMap).length === 0) {
-        const standardOrder = [
-          null, null, '교무기획부', '교육연구부', '학생인권안전부', '미래교육혁신부',
-          '민주시민자치부', '진로상담부', '과학환경부', '체육예술건강부', '교육정보부',
-          '3학년부', '2학년부', '1학년부', '행정실'
-        ];
-        standardOrder.forEach((d, idx) => { if (d) colDeptMap[idx] = d; });
-      }
-
-      const extracted = [];
-      for (let i = startRowIdx; i < rows.length; i++) {
-        const cells = rows[i].c || [];
-        const dayVal = parseInt(cells[0]?.v ?? cells[0]?.f, 10);
-        if (isNaN(dayVal) || dayVal < 1 || dayVal > 31) continue;
-
-        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(dayVal).padStart(2, '0')}`;
-
-        for (const [colIdxStr, deptName] of Object.entries(colDeptMap)) {
-          const colIdx = parseInt(colIdxStr, 10);
-          const rawVal = String(cells[colIdx]?.v || '').trim();
-          if (!rawVal) continue;
-
-          // Ctrl+Enter 줄바꿈 분리 + 괄호 부연줄 자동 병합
-          const rawLines = rawVal.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-          const mergedItems = [];
-          rawLines.forEach(line => {
-            if (mergedItems.length > 0 && (/^\(.*\)$/.test(line) || /^-\s/.test(line))) {
-              mergedItems[mergedItems.length - 1] += ' ' + line;
-            } else {
-              mergedItems.push(line);
-            }
-          });
-
-          mergedItems.forEach(itemText => {
-            const isHolidayOrExam = /공휴일|절$|연휴|재량휴업|지필평가|진단평가/.test(itemText);
-            extracted.push({
-              id: `gs_${year}${month}_${dayVal}_${colIdx}_${Math.random().toString(36).slice(2, 7)}`,
-              date: dateStr,
-              title: itemText,
-              dept: deptName,
-              time: '08:50',
-              meta: `${year}.${month}월 월중행사계획서`,
-              category: isHolidayOrExam ? 'exam' : 'official',
-              source: 'gsheet',
-              alarm: 'none'
-            });
-          });
-        }
-      }
-
-      return { year, month, events: extracted };
-    }
-
-    function applySheetEventsForMonth(year, month, newSheetEvents) {
-      const prefix = `${year}-${String(month).padStart(2, '0')}-`;
-      // 해당 월의 기존 gsheet 출처 일정만 최신본으로 교체 (개인 추가 일정 및 연간 파일 일정은 보존)
-      state.events = state.events.filter(e => !(e.source === 'gsheet' && e.date.startsWith(prefix)));
-      state.events.push(...newSheetEvents);
-      saveEvents();
-    }
-
-    async function syncFromGoogleSheetByUrl() {
-      const url = document.getElementById('gsheetUrlInput').value.trim();
-      state.gsheetUrl = url;
-      localStorage.setItem('ms_gsheet_url_v2', url);
-
-      const { spreadsheetId, gid } = extractSheetInfo(url);
-      if (!spreadsheetId) { alert('올바른 Google 스프레드시트 주소를 입력해 주세요.'); return; }
-
-      const logEl = document.getElementById('sheetSyncLog');
-      logEl.textContent = '⏳ 구글 스프레드시트에서 실시간 월중행사 데이터를 불러오는 중입니다...';
-
-      try {
-        const table = await fetchGvizJsonp(spreadsheetId, `gid=${gid}`);
-        const { year, month, events } = parseMonthlyPlanTable(table);
-        applySheetEventsForMonth(year, month, events);
-        state.currentYear = year;
-        state.currentMonth = month - 1;
-        state.selectedDate = `${year}-${String(month).padStart(2, '0')}-03`;
-        renderCalendar();
-        renderDayDetail();
-        logEl.innerHTML = `✅ <strong>${year}년 ${month}월</strong> 월중행사계획서 동기화 완료! 총 <strong>${events.length}건</strong>의 부서별 활동이 달력에 반영되었습니다.`;
-        document.getElementById('sheetSyncStatusBadge').textContent = `${year}.${month}월 실시간 동기화됨`;
-        switchTab('calendar');
-      } catch (err) {
-        logEl.innerHTML = `⚠️ 시트 직접 호출 안내: ${err.message}`;
-        alert(err.message);
-      }
-    }
-
-    async function syncFromGoogleSheetByTabName() {
-      const url = document.getElementById('gsheetUrlInput').value.trim();
-      const tabName = document.getElementById('gsheetTabNameInput').value.trim();
-      const { spreadsheetId } = extractSheetInfo(url);
-      if (!spreadsheetId || !tabName) return;
-
-      const logEl = document.getElementById('sheetSyncLog');
-      logEl.textContent = `⏳ [${tabName}] 시트 탭을 불러오는 중입니다...`;
-
-      try {
-        const table = await fetchGvizJsonp(spreadsheetId, `sheet=${encodeURIComponent(tabName)}`);
-        const { year, month, events } = parseMonthlyPlanTable(table, tabName);
-        applySheetEventsForMonth(year, month, events);
-        state.currentYear = year;
-        state.currentMonth = month - 1;
-        state.selectedDate = `${year}-${String(month).padStart(2, '0')}-02`;
-        renderCalendar();
-        renderDayDetail();
-        logEl.innerHTML = `✅ <strong>[${tabName}]</strong> 탭 동기화 완료 (${events.length}건 반영)`;
-        switchTab('calendar');
-      } catch (err) {
-        logEl.textContent = `⚠️ [${tabName}] 탭 불러오기 실패: ${err.message}`;
-        alert(`[${tabName}] 탭을 읽지 못했습니다: ` + err.message);
-      }
-    }
-
-    async function syncAllMonthsFromSheet() {
-      const url = document.getElementById('gsheetUrlInput').value.trim();
-      const baseYear = parseInt(document.getElementById('gsheetBatchYearSelect').value, 10);
-      const { spreadsheetId } = extractSheetInfo(url);
-      if (!spreadsheetId) return;
-
-      const logEl = document.getElementById('sheetSyncLog');
-      const monthTabs = [
-        `${baseYear}.3월`, `${baseYear}.4월`, `${baseYear}.5월`, `${baseYear}.6월`,
-        `${baseYear}.7월`, `${baseYear}.8월`, `${baseYear}.9월`, `${baseYear}.10월`,
-        `${baseYear}.11월`, `${baseYear}.12월`, `${baseYear + 1}.1월`, `${baseYear + 1}.2월`
-      ];
-
-      let totalCount = 0;
-      let loadedTabs = [];
-      logEl.textContent = `⏳ ${baseYear}학년도 월별 시트 탭을 순차 조회하고 있습니다...`;
-
-      for (const tab of monthTabs) {
-        try {
-          const table = await fetchGvizJsonp(spreadsheetId, `sheet=${encodeURIComponent(tab)}`);
-          const { year, month, events } = parseMonthlyPlanTable(table, tab);
-          if (events.length > 0) {
-            applySheetEventsForMonth(year, month, events);
-            totalCount += events.length;
-            loadedTabs.push(tab);
-          }
-        } catch (_) {
-          // 아직 생성되지 않은 월 탭은 건너뜀
-        }
-      }
-
-      renderCalendar();
-      renderDayDetail();
-      logEl.innerHTML = loadedTabs.length > 0
-        ? `✅ 일괄 동기화 완료: <strong>${loadedTabs.join(', ')}</strong> (총 ${totalCount}건 반영)`
-        : `⚠️ 불러온 탭이 없습니다. 시트 공유 설정(링크가 있는 모든 사용자 뷰어)과 탭 이름(예: ${baseYear}.3월)을 확인해 주세요.`;
-    }
-
-    async function quickSyncCurrentMonthSheet() {
-      const tabName = `${state.currentYear}.${state.currentMonth + 1}월`;
-      document.getElementById('gsheetTabNameInput').value = tabName;
-      await syncFromGoogleSheetByTabName();
-    }
-
-    // ==========================================
-    // 연간 학사일정 파일(Excel/PDF/HWPX) 업로드 파서
-    // ==========================================
-    async function handleFileUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      const ext = file.name.split('.').pop().toLowerCase();
-      const baseYear = parseInt(document.getElementById('targetYearSelect').value, 10);
-      let lines = [];
-
-      try {
-        if (['xlsx', 'xls', 'csv'].includes(ext)) {
-          const data = await file.arrayBuffer();
-          const wb = XLSX.read(data, { type: 'array' });
-          wb.SheetNames.forEach(name => {
-            const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
-            lines.push(...rows.map(r => r.join(' | ')));
-          });
-        } else if (ext === 'pdf') {
-          const data = await file.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument({ data }).promise;
-          for (let p = 1; p <= pdf.numPages; p++) {
-            const page = await pdf.getPage(p);
-            const content = await page.getTextContent();
-            lines.push(content.items.map(i => i.str).join(' '));
-          }
-        } else if (ext === 'hwpx') {
-          const data = await file.arrayBuffer();
-          const zip = await JSZip.loadAsync(data);
-          const secs = Object.keys(zip.files).filter(n => n.startsWith('Contents/section') && n.endsWith('.xml'));
-          for (const s of secs) {
-            const xml = await zip.files[s].async('string');
-            lines.push(xml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
-          }
-        } else {
-          lines = (await file.text()).split('\n');
-        }
-
-        state.parsedStaging = parseAnnualFileLines(lines, baseYear);
-        renderParsePreview();
-      } catch (err) {
-        alert('파일 파싱 오류: ' + err.message);
-      }
-    }
-
-    function parseAnnualFileLines(lines, baseYear) {
-      const results = [];
-      let curMonth = 3;
-
-      lines.forEach(line => {
-        const mHead = line.match(/^\s*(\d{1,2})\s*[|]\s*\d{1,2}\s*[|]/);
-        if (mHead) {
-          const m = parseInt(mHead[1], 10);
-          if (m >= 1 && m <= 12) curMonth = m;
-        }
-
-        const cellRegex = /\b(\d{1,2})\s*(?:\[\s*(\d)\s+(\d)\s+(\d)\s*\]|(\d)\s+(\d)\s+(\d))\s*([가-힣A-Za-z0-9(),·~<>\-\s]{3,70})/g;
-        let m;
-        while ((m = cellRegex.exec(line)) !== null) {
-          const day = parseInt(m[1], 10);
-          if (day < 1 || day > 31) continue;
-          const s1 = m[2] || m[5], s2 = m[3] || m[6], s3 = m[4] || m[7];
-          const desc = m[8].trim();
-          if (!desc || /^[\d\s|]+$/.test(desc)) continue;
-
-          const yr = curMonth >= 3 ? baseYear : baseYear + 1;
-          const dateStr = `${yr}-${String(curMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          results.push({
-            id: 'f_' + Math.random().toString(36).slice(2, 9),
-            date: dateStr,
-            title: desc,
-            dept: classifyDeptByText(desc),
-            time: '08:50',
-            meta: `학년별 시수 [${s1}·${s2}·${s3}]`,
-            category: /지필평가|휴업일|공휴일/.test(desc) ? 'exam' : 'official',
-            source: 'file',
-            alarm: 'none'
-          });
-        }
-      });
-      return results;
-    }
-
-    function renderParsePreview() {
-      document.getElementById('parsePreviewContainer').classList.remove('hidden');
-      document.getElementById('parsedCount').textContent = state.parsedStaging.length;
-      const tbody = document.getElementById('parsePreviewBody');
-      tbody.innerHTML = state.parsedStaging.length === 0
-        ? `<tr><td colspan="4" class="p-4 text-center text-slate-400">추출된 학사일정 항목이 없습니다.</td></tr>`
-        : state.parsedStaging.map(item => `
-            <tr class="hover:bg-slate-50">
-              <td class="p-2.5 font-semibold whitespace-nowrap">${item.date}</td>
-              <td class="p-2.5 font-bold text-indigo-900">${item.title}</td>
-              <td class="p-2.5"><span class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-semibold">${item.dept}</span></td>
-              <td class="p-2.5 text-slate-600">${item.meta}</td>
-            </tr>
-          `).join('');
-    }
-
-    function applyParsedEvents() {
-      if (state.parsedStaging.length === 0) return;
-      if (document.getElementById('mergeModeSelect').value === 'replace') {
-        state.events = state.events.filter(e => e.source !== 'file');
-      }
-      state.events.push(...state.parsedStaging);
-      saveEvents();
-      const [y, m] = state.parsedStaging[0].date.split('-').map(Number);
-      state.currentYear = y;
-      state.currentMonth = m - 1;
-      state.selectedDate = state.parsedStaging[0].date;
-      state.parsedStaging = [];
-      document.getElementById('parsePreviewContainer').classList.add('hidden');
-      renderCalendar();
-      renderDayDetail();
-      switchTab('calendar');
-      alert('연간 학사일정이 12개 부서별로 분류되어 반영되었습니다!');
-    }
-
-    // ==========================================
-    // 12개 부서 키워드 규칙 편집기
-    // ==========================================
-    function renderDeptRulesEditor() {
-      const container = document.getElementById('deptRuleList');
-      container.innerHTML = DEPT_NAMES.map(dept => `
-        <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50">
-          <label class="block text-xs font-extrabold text-indigo-700 mb-1.5">${dept}</label>
-          <textarea data-dept="${dept}" rows="2" class="dept-rule-input w-full text-xs border border-slate-300 rounded-lg p-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">${(state.deptRules[dept] || []).join(', ')}</textarea>
-        </div>
-      `).join('');
-    }
-
-    function saveDeptRules() {
-      document.querySelectorAll('.dept-rule-input').forEach(el => {
-        const d = el.getAttribute('data-dept');
-        state.deptRules[d] = el.value.split(',').map(s => s.trim()).filter(Boolean);
-      });
-      localStorage.setItem('ms_dept_rules_v2', JSON.stringify(state.deptRules));
-
-      state.events = state.events.map(evt => {
-        if (evt.source !== 'file') return evt;
-        return { ...evt, dept: classifyDeptByText(evt.title + ' ' + (evt.meta || '')) };
-      });
-      saveEvents();
-      renderCalendar();
-      renderDayDetail();
-      alert('12개 부서 분류 키워드가 저장되었습니다.');
-    }
-
-    // ==========================================
-    // 알람 및 Google OAuth / Google Calendar 연동
-    // ==========================================
-    function renderAlarmList() {
-      const container = document.getElementById('alarmListContainer');
-      const alarms = state.events.filter(e => e.alarm && e.alarm !== 'none');
-      container.innerHTML = alarms.length === 0
-        ? `<p class="text-xs text-slate-400 py-4 text-center">설정된 알람이 없습니다.</p>`
-        : alarms.map(a => `
-            <div class="flex items-center justify-between p-3 rounded-xl border border-amber-200 bg-amber-50/50">
-              <div>
-                <p class="text-xs font-bold text-slate-900">[${a.dept}] ${a.title}</p>
-                <p class="text-[11px] text-slate-600">${a.date} ${a.time || '08:50'} · ${a.alarm === '1440' ? '하루 전' : a.alarm + '분 전'}</p>
-              </div>
-              <button onclick="clearAlarm('${a.id}')" class="text-xs text-rose-600 font-bold">해제</button>
-            </div>
-          `).join('');
-    }
-
-    function clearAlarm(id) {
-      state.events = state.events.map(e => e.id === id ? { ...e, alarm: 'none' } : e);
-      saveEvents();
-      renderCalendar();
-      renderDayDetail();
-    }
-
-    function showAlarmPopup(title, meta) {
-      document.getElementById('alarmBannerTitle').textContent = title;
-      document.getElementById('alarmBannerMeta').textContent = meta;
-      document.getElementById('alarmBanner').classList.remove('hidden');
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('🔔 중학교 학사·부서 일정 알람', { body: `${title} (${meta})` });
-      }
-    }
-
-    function closeAlarmBanner() {
-      document.getElementById('alarmBanner').classList.add('hidden');
-    }
-
-    function testNotification() {
-      if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission().then(() => showAlarmPopup('[교무기획부] 부장교사협의회', '알람 작동 테스트입니다.'));
-      } else {
-        showAlarmPopup('[교무기획부] 부장교사협의회', '알람 작동 테스트입니다.');
-      }
-    }
-
-    function startAlarmWatcher() {
-      setInterval(() => {
-        const now = new Date();
-        state.events.forEach(evt => {
-          if (!evt.alarm || evt.alarm === 'none' || evt._notified) return;
-          const evtTime = new Date(`${evt.date}T${evt.time || '08:50'}:00`);
-          const diffMin = Math.round((evtTime - now) / 60000);
-          if (diffMin === parseInt(evt.alarm, 10)) {
-            evt._notified = true;
-            showAlarmPopup(`[${evt.dept}] ${evt.title}`, `${evt.date} ${evt.time || '08:50'}`);
-          }
-        });
-      }, 30000);
-    }
-
-    function saveGoogleConfig() {
-      state.googleClientId = document.getElementById('googleClientIdInput').value.trim();
-      state.googleCalendarId = document.getElementById('googleCalendarIdInput').value.trim() || 'primary';
-      localStorage.setItem('ms_google_client_id_v2', state.googleClientId);
-      localStorage.setItem('ms_google_cal_id_v2', state.googleCalendarId);
-      alert('Google 연동 설정이 저장되었습니다.');
-    }
-
-    function updateGoogleLoginUI() {
-      document.getElementById('googleLoginText').textContent = state.googleUser
-        ? `${state.googleUser.name} (로그아웃)`
-        : 'Google 아이디 로그인';
-    }
-
-    function handleGoogleLogin() {
-      if (state.googleUser) {
-        state.googleUser = null;
-        state.accessToken = null;
-        localStorage.removeItem('ms_google_user_v2');
-        updateGoogleLoginUI();
-        return;
-      }
-
-      if (state.googleClientId && window.google && google.accounts) {
-        const tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: state.googleClientId,
-          scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.profile',
-          callback: async (resp) => {
-            if (resp.error) { alert('로그인 오류: ' + resp.error); return; }
-            state.accessToken = resp.access_token;
-            const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-              headers: { Authorization: `Bearer ${state.accessToken}` }
-            });
-            const profile = await res.json();
-            state.googleUser = { name: profile.name || '선생님', email: profile.email };
-            localStorage.setItem('ms_google_user_v2', JSON.stringify(state.googleUser));
-            updateGoogleLoginUI();
-          }
-        });
-        tokenClient.requestAccessToken({ prompt: 'consent' });
-      } else {
-        const email = prompt('개인 Google 이메일을 입력하세요 (정식 OAuth 연동은 [내 알람 & Google API 설정] 탭에 Client ID 입력 시 자동 전환됩니다):', 'teacher@school.goe.go.kr');
-        if (email) {
-          state.googleUser = { name: email.split('@')[0] + ' 선생님', email };
-          localStorage.setItem('ms_google_user_v2', JSON.stringify(state.googleUser));
-          updateGoogleLoginUI();
-        }
-      }
-    }
-
-    async function insertGoogleCalendarEvent(evt) {
-      const startDateTime = `${evt.date}T${evt.time || '08:50'}:00+09:00`;
-      const endHour = String(Math.min(23, parseInt((evt.time || '08:50').split(':')[0], 10) + 1)).padStart(2, '0');
-      const endDateTime = `${evt.date}T${endHour}:00:00+09:00`;
-
-      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(state.googleCalendarId)}/events`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${state.accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          summary: `[${evt.dept}] ${evt.title}`,
-          description: evt.meta || '',
-          start: { dateTime: startDateTime, timeZone: 'Asia/Seoul' },
-          end: { dateTime: endDateTime, timeZone: 'Asia/Seoul' }
-        })
-      });
-      if (!res.ok) throw new Error('Google Calendar API 등록 오류');
-    }
-
-    async function sendSingleEventToGoogle(id) {
-      if (!state.googleUser) { alert('먼저 상단의 [Google 아이디 로그인]을 눌러 로그인해 주세요.'); return; }
-      const evt = state.events.find(e => e.id === id);
-      if (!evt) return;
-
-      if (state.accessToken) {
-        try {
-          await insertGoogleCalendarEvent(evt);
-          alert(`구글 달력에 [${evt.dept}] ${evt.title} 일정이 등록되었습니다!`);
-        } catch (err) {
-          alert(err.message);
-        }
-      } else {
-        const cleanDate = evt.date.replace(/-/g, '');
-        const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent('[' + evt.dept + '] ' + evt.title)}&dates=${cleanDate}T000000Z/${cleanDate}T010000Z&details=${encodeURIComponent(evt.meta || '')}`;
-        window.open(url, '_blank');
-      }
-    }
-
-    async function syncMonthToGoogleCalendar() {
-      if (!state.googleUser) { alert('먼저 상단의 [Google 아이디 로그인]을 진행해 주세요.'); return; }
-      const prefix = `${state.currentYear}-${String(state.currentMonth + 1).padStart(2, '0')}`;
-      const onlyMine = document.getElementById('onlyMyDeptCheck').checked;
-      let targets = state.events.filter(e => e.date.startsWith(prefix));
-      if (onlyMine && state.myDept !== 'ALL') {
-        targets = targets.filter(e => getMatchType(e) !== 'other');
-      }
-      if (targets.length === 0) { alert('이번 달에 내보낼 내 부서 일정이 없습니다.'); return; }
-
-      if (state.accessToken) {
-        let ok = 0;
-        for (const evt of targets) {
-          try { await insertGoogleCalendarEvent(evt); ok++; } catch (_) {}
-        }
-        alert(`총 ${ok}건의 일정을 Google Calendar에 등록했습니다!`);
-      } else {
-        const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MiddleSchool Schedule//KO'];
-        targets.forEach(evt => {
-          const d = evt.date.replace(/-/g, '');
-          lines.push('BEGIN:VEVENT', `UID:${evt.id}@ms-cal`, `DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${d}`, `SUMMARY:[${evt.dept}] ${evt.title}`, `DESCRIPTION:${(evt.meta || '').replace(/\n/g, ' ')}`, 'END:VEVENT');
-        });
-        lines.push('END:VCALENDAR');
-        const blob = new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `월중학사일정_${prefix}_${state.myDept}.ics`;
-        a.click();
-        alert(`구글 달력 가져오기용 파일(월중학사일정_${prefix}_${state.myDept}.ics)을 생성했습니다. 구글 캘린더 [설정 -> 가져오기]에 올리면 내 부서 일정이 한 번에 등록됩니다.`);
-      }
-    }
-  </script>
+  
 </body>
 </html>
